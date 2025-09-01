@@ -1,10 +1,193 @@
-1f6cdd00d9e2bd9d3b28f461bd5aa895,
-1fc41583fae8a7b96fc04814a21d9c34,
-6ed0532ab5647e1f5ef205ca249b9862,
-a2ccfc229e94083c26c1b548ead503d7,
-d6f567430c47282b2c60fbf2863af08c,
-c2ee1aefb89d29886d966b4a5fbc45db,
-3753a175ccd2300b3e980d3ce4c32f38,
-493a988ea0a6eb4c4dfa9e77d984b7ad,
-ce7ae79bd212983f6b6b78c8861772ac,
-d2427a5e709a9317e44363bb6f9fd2d5,
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>杠杆计算器</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: Inter, sans-serif;
+
+      /* Flex 居中卡片 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f1724;
+    }
+
+    canvas#bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    .card {
+      position: relative;
+      z-index: 1;
+      width: 720px;
+      max-width: 95vw;
+      background: linear-gradient(180deg,#071426,#071c2b);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 12px 30px rgba(2,6,23,0.7);
+      color: #e6eef8;
+      margin: 0; /* 去掉 margin，靠 Flex 居中 */
+    }
+
+    h1 { margin: 0 0 8px 0; font-size: 20px }
+    p.sub { margin: 0 0 18px 0; color: #94a3b8; font-size: 13px }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px }
+    label { display: block; font-size: 13px; color: #9fb4dd; margin-bottom: 6px }
+    input { width: 80%;  margin: 0 auto;    /* 居中 */; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color: #e6eef8; font-size: 15px }
+    .row { display: flex; gap: 8px }
+    button { padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer; background: #0b3b63; color: white; font-weight: 600 }
+    .result { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-top: 10px; color: #dbeafe }
+    .muted { color: #94a3b8; font-size: 13px }
+    .formula { background: rgba(255,255,255,0.015); padding: 10px; border-radius: 8px; margin-top: 12px; color: #cfe3ff; font-size: 14px }
+    .example { font-size: 13px; color: #cddffb }
+    footer { margin-top: 12px; color: #94a3b8; font-size: 12px }
+    @media (max-width: 640px){ .grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <!-- 星空背景 canvas -->
+  <canvas id="bg"></canvas>
+
+  <!-- 计算器卡片 -->
+  <div class="card">
+    <h1>杠杆 — 盈利关系计算器</h1>
+    <p class="sub">输入杠杆、目标收益或标的变动，自动扣除手续费（默认0.07%）。</p>
+
+    <div class="grid">
+      <div>
+        <label>杠杆倍数 (×)</label>
+        <input id="leverage" type="number" min="1" step="0.01" value="25">
+      </div>
+      <div>
+        <label>手续费率 (%)</label>
+        <input id="feePct" type="number" step="0.0001" value="0.07">
+      </div>
+      <div>
+        <label>目标收益（%）</label>
+        <input id="targetProfit" type="number" step="0.0001" value="10">
+      </div>
+      <div>
+        <label>标的实际变动（%）</label>
+        <input id="underlyingMove" type="number" step="0.0001" placeholder="例如 0.4">
+      </div>
+    </div>
+
+    <div class="row" style="margin-bottom:8px">
+      <button id="calcRequired">从 杠杆+目标收益 → 计算标的需变动</button>
+      <button id="calcProfit">从 杠杆+标的变动 → 计算收益</button>
+      <button id="clearAll" style="background:#1f2937">清除</button>
+    </div>
+
+    <div id="out" class="result" aria-live="polite">
+      <div id="outText">结果会显示在这里</div>
+      <div class="formula" id="formulaArea">
+        <strong>公式</strong>
+        <div>毛收益率 (%) = 杠杆 × 标的变动 (%)</div>
+        <div>净收益率 (%) = 毛收益率 − 手续费率</div>
+        <div>标的需变动 (%) = (目标收益率 + 手续费率) ÷ 杠杆</div>
+      </div>
+    </div>
+
+    <div class="example">
+      <strong>示例：</strong> 杠杆 25×，目标收益 10%，手续费率 0.07% → 标的需上涨 ≈ (10+0.07)/25 = 0.4028%。
+    </div>
+
+    <footer>注意：这里只计算单边手续费，如果实际交易是双边（开仓+平仓），记得把手续费率翻倍。</footer>
+  </div>
+
+  <script>
+    // ====== 杠杆计算器 JS ======
+    function fmtPercent(n){
+      if (!isFinite(n)) return '—';
+      const fixed = Number(n).toFixed(6);
+      return parseFloat(fixed).toString().replace(/\.0+$/,'') + '%';
+    }
+    function getVal(id){
+      const v = parseFloat(document.getElementById(id).value);
+      return isNaN(v) ? NaN : v;
+    }
+    const outText = document.getElementById('outText');
+
+    document.getElementById('calcRequired').addEventListener('click', () => {
+      const L = getVal('leverage'), target = getVal('targetProfit'), fee = getVal('feePct');
+      if(!isFinite(L)||L<=0||!isFinite(target)){outText.innerText='请填写杠杆与目标收益。';return;}
+      const move=(target+fee)/L;
+      outText.innerHTML=`<strong>结果：</strong><br>
+        杠杆 ${L}×, 目标净收益 ${target}%<br>
+        标的需变动 ≈ <strong>${fmtPercent(move)}</strong><br>
+        (含手续费 ${fee}%)`;
+      document.getElementById('underlyingMove').value = Number(move.toFixed(6));
+    });
+
+    document.getElementById('calcProfit').addEventListener('click', () => {
+      const L=getVal('leverage'), move=getVal('underlyingMove'), fee=getVal('feePct');
+      if(!isFinite(L)||L<=0||!isFinite(move)){outText.innerText='请填写杠杆与标的变动。';return;}
+      const gross=L*move, net=gross-fee;
+      outText.innerHTML=`<strong>结果：</strong><br>
+        杠杆 ${L}×, 标的变动 ${fmtPercent(move)}<br>
+        毛收益 ≈ ${fmtPercent(gross)}<br>
+        扣除手续费 ${fee}% → 净收益 ≈ <strong>${fmtPercent(net)}</strong>`;
+      document.getElementById('targetProfit').value = Number(net.toFixed(6));
+    });
+
+    document.getElementById('clearAll').addEventListener('click',()=>{
+      ['leverage','targetProfit','underlyingMove','feePct'].forEach(id=>document.getElementById(id).value='');
+      outText.innerText='已清除。';
+    });
+
+    // ====== 星空背景 JS ======
+    const canvas = document.getElementById("bg");
+    const ctx = canvas.getContext("2d");
+    let stars = [];
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      stars = Array.from({length:150}, () => ({
+        x: Math.random()*canvas.width,
+        y: Math.random()*canvas.height,
+        r: Math.random()*1.5,
+        d: Math.random()*1
+      }));
+    }
+    function drawStars() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle="#fff";
+      stars.forEach(s=>{
+        ctx.beginPath();
+        ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+        ctx.fill();
+      });
+      updateStars();
+    }
+    function updateStars(){
+      stars.forEach(s=>{
+        s.y += s.d;
+        if(s.y>canvas.height){
+          s.y=0;
+          s.x=Math.random()*canvas.width;
+        }
+      });
+    }
+    function animate(){
+      drawStars();
+      requestAnimationFrame(animate);
+    }
+    window.addEventListener("resize", resize);
+    resize();
+    animate();
+  </script>
+</body>
+</html>
