@@ -39,14 +39,14 @@
       padding: 20px;
       box-shadow: 0 12px 30px rgba(2,6,23,0.7);
       color: #e6eef8;
-      margin: 0; /* 去掉 margin，靠 Flex 居中 */
+      margin: 0;
     }
 
     h1 { margin: 0 0 8px 0; font-size: 20px }
     p.sub { margin: 0 0 18px 0; color: #94a3b8; font-size: 13px }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px }
     label { display: block; font-size: 13px; color: #9fb4dd; margin-bottom: 6px }
-    input { width: 80%;  margin: 0 auto;    /* 居中 */; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color: #e6eef8; font-size: 15px }
+    input { width: 80%; margin: 0 auto; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color: #e6eef8; font-size: 15px }
     .row { display: flex; gap: 8px }
     button { padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer; background: #0b3b63; color: white; font-weight: 600 }
     .result { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-top: 10px; color: #dbeafe }
@@ -96,13 +96,13 @@
       <div class="formula" id="formulaArea">
         <strong>公式</strong>
         <div>毛收益率 (%) = 杠杆 × 标的变动 (%)</div>
-        <div>净收益率 (%) = 毛收益率 − 手续费率</div>
-        <div>标的需变动 (%) = (目标收益率 + 手续费率) ÷ 杠杆</div>
+        <div>净收益率 (%) = 毛收益率 − (手续费率 × 杠杆)</div>
+        <div>标的需变动 (%) = (目标收益率 + 手续费率 × 杠杆) ÷ 杠杆</div>
       </div>
     </div>
 
     <div class="example">
-      <strong>示例：</strong> 杠杆 25×，目标收益 10%，手续费率 0.07% → 标的需上涨 ≈ (10+0.07)/25 = 0.4028%。
+      <strong>示例：</strong> 杠杆 25×，目标收益 10%，手续费率 0.07% → 标的需上涨 ≈ (10+0.07×25)/25 = 0.47%。
     </div>
 
     <footer>注意：这里只计算单边手续费，如果实际交易是双边（开仓+平仓），记得把手续费率翻倍。</footer>
@@ -120,30 +120,45 @@
       return isNaN(v) ? NaN : v;
     }
     const outText = document.getElementById('outText');
-    
+
     document.getElementById('calcRequired').addEventListener('click', () => {
       const L = getVal('leverage'), target = getVal('targetProfit'), fee = getVal('feePct');
       if(!isFinite(L)||L<=0||!isFinite(target)){outText.innerText='请填写杠杆与目标收益。';return;}
-      // 手续费放大：fee × L
-      const move=(target + fee*L)/L;
+      const move=(target+fee*L)/L;
+      const finalNet = target - fee*L; // 目标净收益 - 手续费
       outText.innerHTML=`<strong>结果：</strong><br>
         杠杆 ${L}×, 目标净收益 ${target}%<br>
         标的需变动 ≈ <strong>${fmtPercent(move)}</strong><br>
-        (含手续费 ${fee}% × 杠杆 → ${fmtPercent(fee*L)})`;
+        (含手续费 ${fee}% × 杠杆 → ${fmtPercent(fee*L)})<br>
+        👉 最终目标净收益 ≈ <strong style="color:#22c55e">${fmtPercent(finalNet)}</strong>`;
       document.getElementById('underlyingMove').value = Number(move.toFixed(6));
     });
-    
-    document.getElementById('calcProfit').addEventListener('click', () => {
-      const L=getVal('leverage'), move=getVal('underlyingMove'), fee=getVal('feePct');
-      if(!isFinite(L)||L<=0||!isFinite(move)){outText.innerText='请填写杠杆与标的变动。';return;}
-      const gross=L*move, net=gross - fee*L; // 手续费随杠杆放大
-      outText.innerHTML=`<strong>结果：</strong><br>
-        杠杆 ${L}×, 标的变动 ${fmtPercent(move)}<br>
-        毛收益 ≈ ${fmtPercent(gross)}<br>
-        扣除手续费 ${fee}% × 杠杆 → ${fmtPercent(fee*L)} → 净收益 ≈ <strong>${fmtPercent(net)}</strong>`;
-      document.getElementById('targetProfit').value = Number(net.toFixed(6));
-    });
-    
+
+document.getElementById('calcProfit').addEventListener('click', () => {
+  const L = getVal('leverage'), move = getVal('underlyingMove'), fee = getVal('feePct');
+  if (!isFinite(L) || L <= 0 || !isFinite(move)) {
+    outText.innerText = '请填写杠杆与标的变动。'; 
+    return;
+  }
+
+  // 不计手续费（主结果）
+  const gross = L * move;          // 毛收益 = 杠杆 × 标的变动
+
+  // 计手续费（对比项）
+  const net = gross - fee * L;     // 净收益 = 毛收益 − (手续费率 × 杠杆)
+
+  outText.innerHTML = `<strong>结果：</strong><br>
+    杠杆 ${L}×, 标的变动 ${fmtPercent(move)}<br>
+    ├─ <span style="color:#a5f3fc">不计手续费（毛收益）≈ ${fmtPercent(gross)}</span><br>
+    └─ <span style="color:#fca5a5">计手续费（净收益）≈ ${fmtPercent(net)}</span><br>
+    (手续费 ${fee}% × 杠杆 → ${fmtPercent(fee * L)})`;
+
+  // 不再写入 targetProfit，避免“看起来像加上了手续费”
+  // 如需自动填入，可改为：document.getElementById('targetProfit').value = Number(gross.toFixed(6)); // 毛收益
+  // 或：document.getElementById('targetProfit').value = Number(net.toFixed(6));   // 净收益
+});
+
+
     document.getElementById('clearAll').addEventListener('click',()=>{
       ['leverage','targetProfit','underlyingMove','feePct'].forEach(id=>document.getElementById(id).value='');
       outText.innerText='已清除。';
