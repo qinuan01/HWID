@@ -122,17 +122,26 @@
     const outText = document.getElementById('outText');
 
     document.getElementById('calcRequired').addEventListener('click', () => {
-      const L = getVal('leverage'), target = getVal('targetProfit'), fee = getVal('feePct');
-      if(!isFinite(L)||L<=0||!isFinite(target)){outText.innerText='请填写杠杆与目标收益。';return;}
-      const move=(target+fee*L)/L;
-      const finalNet = target - fee*L; // 目标净收益 - 手续费
-      outText.innerHTML=`<strong>结果：</strong><br>
-        杠杆 ${L}×, 目标净收益 ${target}%<br>
-        标的需变动 ≈ <strong>${fmtPercent(move)}</strong><br>
-        (含手续费 ${fee}% × 杠杆 → ${fmtPercent(fee*L)})<br>
-        👉 最终目标净收益 ≈ <strong style="color:#22c55e">${fmtPercent(finalNet)}</strong>`;
-      document.getElementById('underlyingMove').value = Number(move.toFixed(6));
-    });
+  const L = getVal('leverage'), target = getVal('targetProfit'), fee = getVal('feePct');
+  if(!isFinite(L)||L<=0||!isFinite(target)){
+    outText.innerText='请填写杠杆与目标收益。';return;
+  }
+
+  // 不计手续费的标的需变动
+  const moveNoFee = target / L;
+
+  // 计手续费的标的需变动
+  const moveWithFee = (target + fee * L) / L;
+
+  outText.innerHTML = `<strong>结果：</strong><br>
+    杠杆 ${L}×, 目标净收益 ${target}%<br>
+    ├─ <span style="color:#a5f3fc">不计手续费：标的需变动 ≈ ${fmtPercent(moveNoFee)}</span><br>
+    └─ <span style="color:#fca5a5">计手续费：标的需变动 ≈ <strong>${fmtPercent(moveWithFee)}</strong></span><br>
+    (手续费 ${fee}% × 杠杆 → ${fmtPercent(fee * L)})`;
+
+  document.getElementById('underlyingMove').value = Number(moveWithFee.toFixed(6));
+});
+
 
 document.getElementById('calcProfit').addEventListener('click', () => {
   const L = getVal('leverage'), move = getVal('underlyingMove'), fee = getVal('feePct');
