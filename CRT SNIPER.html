@@ -156,7 +156,7 @@ function createChart(element) {
     grid: { vertLines: { color: "transparent" }, horzLines: { color: "transparent" } },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     rightPriceScale: { borderColor: "#9aa0a0" },
-    timeScale: { borderColor: "#9aa0a0" },
+    timeScale: { borderColor: "#9aa0a0" ,visible: false },
 
   });
   const series = chart.addCandlestickSeries({
