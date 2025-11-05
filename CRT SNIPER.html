@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>Bybit 实时K线（最后三根）</title>
+  <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root {
+      --bg: #bbcaca;
+      --card-bg: #e0ecec;
+      --accent-green: #006064;
+      --accent-red: rgba(46,46,46,0.85);
+      --text: #1a1a1a;
+      --grid: #9aa0a0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #settlement {
+      text-align: center;
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 25px;
+      letter-spacing: 0.5px;
+    }
+
+    #controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 30px;
+    }
+
+    input {
+      padding: 10px 14px;
+      font-size: 14px;
+      border: none;
+      outline: none;
+      border-radius: 6px;
+      background: #c3d0d0;
+      color: var(--text);
+      width: 180px;
+    }
+
+    button {
+      background: var(--accent-green);
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    button:hover {
+      background: #00838f;
+      transform: translateY(-1px);
+    }
+
+    #container {
+      display: flex;
+      flex-wrap: wrap;        /* 允许换行 */
+      justify-content: center;
+      gap: 24px;              /* 布局间距 */
+      width: 100%;
+    }
+
+    .symbol-row {
+      background: var(--card-bg);
+      border-radius: 14px;
+      padding: 20px;
+      width: 680px;
+      max-width: 95%;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    }
+
+    .symbol-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .symbol-name {
+      font-weight: bold;
+      font-size: 18px;
+      color: var(--accent-green);
+      letter-spacing: 0.5px;
+    }
+
+    .charts {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      width: 100%;
+    }
+
+    .chart-block {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chart {
+      width: 100%;
+      height: 200px;
+      background: #d9e3e3;
+      border-radius: 10px;
+    }
+
+    .label {
+      color: #555;
+      font-size: 14px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="settlement">4H (--:--:--) | 1D (--:--:--)</div>
+
+<div id="controls">
+  <input id="symbolInput" placeholder="输入币种，如 XRPUSDT">
+  <button id="addBtn">＋ 添加币种</button>
+</div>
+
+<div id="container"></div>
+
+<script>
+const wsURL = "wss://stream.bybit.com/v5/public/linear";
+const container = document.getElementById("container");
+const defaultSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"];
+const settlementEl = document.getElementById("settlement");
+
+function createChart(element) {
+  const chart = LightweightCharts.createChart(element, {
+    layout: { background: { color: "#d9e3e3" }, textColor: "#1a1a1a" },
+    grid: { vertLines: { color: "transparent" }, horzLines: { color: "transparent" } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: "#9aa0a0" },
+    timeScale: { borderColor: "#9aa0a0" },
+
+  });
+  const series = chart.addCandlestickSeries({
+    upColor: "#006064",
+    downColor: "rgba(46,46,46,0.85)",
+    borderUpColor: "#006064",
+    borderDownColor: "rgba(46,46,46,0.85)",
+    wickUpColor: "#006064",
+    wickDownColor: "rgba(46,46,46,0.85)",
+  });
+  return { chart, series };
+}
+
+async function fetchLast3(symbol, interval) {
+  const url = `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=3`;
+  const res = await fetch(url);
+  const json = await res.json();
+  if (!json.result?.list) return [];
+  return json.result.list.map(k => ({
+    time: Number(k[0]) / 1000,
+    open: +k[1],
+    high: +k[2],
+    low: +k[3],
+    close: +k[4],
+  })).reverse();
+}
+
+function subscribeWS(symbol, interval, updateFn) {
+  const ws = new WebSocket(wsURL);
+  ws.onopen = () => {
+    const topic = `kline.${interval}.${symbol}`;
+    ws.send(JSON.stringify({ op: "subscribe", args: [topic] }));
+  };
+  ws.onmessage = ev => {
+    const msg = JSON.parse(ev.data);
+    if (msg.data && msg.data[0]) updateFn(msg.data[0]);
+  };
+  ws.onclose = () => setTimeout(() => subscribeWS(symbol, interval, updateFn), 2000);
+}
+
+function getNextKlineClose(interval) {
+  const now = new Date();
+  if (interval === "240") {
+    const hours = Math.floor(now.getUTCHours() / 4) * 4 + 4;
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hours, 0, 0));
+    if (next <= now) next.setHours(next.getHours() + 4);
+    return next;
+  } else if (interval === "D") {
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+    return next;
+  }
+}
+
+function updateSettlementTime() {
+  const now = new Date();
+  const next4h = getNextKlineClose("240");
+  const next1d = getNextKlineClose("D");
+
+  const fmt = ms => {
+    const totalSec = Math.floor(ms/1000);
+    const h = Math.floor(totalSec/3600);
+    const m = Math.floor((totalSec%3600)/60);
+    const s = totalSec % 60;
+    return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  };
+
+  settlementEl.textContent = `4H (${fmt(next4h - now)}) | 1D (${fmt(next1d - now)})`;
+}
+
+setInterval(updateSettlementTime, 1000);
+updateSettlementTime();
+
+async function addSymbolRow(symbol) {
+  const row = document.createElement("div");
+  row.className = "symbol-row";
+  row.innerHTML = `
+    <div class="symbol-header">
+      <div class="symbol-name">${symbol}</div>
+    </div>
+    <div class="charts">
+      <div class="chart-block">
+        <div class="label">4H</div>
+        <div class="chart" id="${symbol}-4h"></div>
+      </div>
+      <div class="chart-block">
+        <div class="label">1D</div>
+        <div class="chart" id="${symbol}-1d"></div>
+      </div>
+    </div>
+  `;
+  container.appendChild(row);
+
+  const chart4h = createChart(document.getElementById(`${symbol}-4h`));
+  const chart1d = createChart(document.getElementById(`${symbol}-1d`));
+
+  let data4h = await fetchLast3(symbol, "240");
+  let data1d = await fetchLast3(symbol, "D");
+
+  chart4h.series.setData(data4h);
+  chart1d.series.setData(data1d);
+  chart4h.chart.timeScale().fitContent();
+  chart1d.chart.timeScale().fitContent();
+
+  subscribeWS(symbol, "240", data => {
+    const c = { time: data.start / 1000, open:+data.open, high:+data.high, low:+data.low, close:+data.close };
+    if (data4h.length && data4h[data4h.length-1].time === c.time)
+      data4h[data4h.length-1] = c;
+    else data4h.push(c);
+    if (data4h.length > 3) data4h.shift();
+    chart4h.series.setData(data4h);
+  });
+
+  subscribeWS(symbol, "D", data => {
+    const c = { time: data.start / 1000, open:+data.open, high:+data.high, low:+data.low, close:+data.close };
+    if (data1d.length && data1d[data1d.length-1].time === c.time)
+      data1d[data1d.length-1] = c;
+    else data1d.push(c);
+    if (data1d.length > 3) data1d.shift();
+    chart1d.series.setData(data1d);
+  });
+}
+
+defaultSymbols.forEach(addSymbolRow);
+
+document.getElementById("addBtn").onclick = () => {
+  const sym = document.getElementById("symbolInput").value.trim().toUpperCase();
+  if (!sym) return;
+  addSymbolRow(sym);
+  document.getElementById("symbolInput").value = "";
+};
+</script>
+
+</body>
+</html>
