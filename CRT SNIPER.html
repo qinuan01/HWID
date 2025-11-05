@@ -26,6 +26,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      overflow-x: hidden;
+      transition: background 0.5s ease;
     }
 
     #settlement {
@@ -73,10 +75,11 @@
 
     #container {
       display: flex;
-      flex-wrap: wrap;        /* 允许换行 */
+      flex-wrap: wrap;
       justify-content: center;
-      gap: 24px;              /* 布局间距 */
+      gap: 24px;
       width: 100%;
+      transition: all 0.4s ease;
     }
 
     .symbol-row {
@@ -89,6 +92,18 @@
       flex-direction: column;
       gap: 14px;
       box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      opacity: 0;
+      transform: scale(0.95);
+      animation: fadeIn 0.5s forwards;
+      transition: all 0.4s ease;
+      cursor: pointer;
+    }
+
+    @keyframes fadeIn {
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
     }
 
     .symbol-header {
@@ -134,45 +149,64 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    /* 手机适配：窄屏下堆叠 */
+
     @media (max-width: 720px) {
-      .charts {
-        flex-direction: column;
-        gap: 12px;
-      }
-      .chart {
-        height: 180px;
-      }
-      input {
-        width: 100%;
-      }
-      button {
-        width: 100%;
-      }
+      .charts { flex-direction: column; gap: 12px; }
+      .chart { height: 180px; }
+      input, button { width: 100%; }
     }
 
-    .chart-block {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
+    .symbol-row {
+      transition: opacity 0.4s ease, transform 0.4s ease;
     }
+  .symbol-row.expanded {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* 不要 scale */
+    z-index: 999;
+    width: 90vw;
+    max-width: 800px;
+    opacity: 0;
+    animation: jellyFadeIn 0.5s forwards;
+  }
 
-    .chart {
-      width: 100%;
-      height: 200px;
-      background: #d9e3e3;
-      border-radius: 10px;
-    }
+@keyframes jellyFadeIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+  30% {
+    opacity: 1; /* 快速淡入 */
+    transform: translate(-50%, -50%) scale(1.04); /* 柔和弹起最大值 */
+  }
+  65% {
+    transform: translate(-50%, -50%) scale(0.99); /* 略微下沉 */
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1); /* 稳定到正常大小 */
+  }
+}
 
-    .label {
-      color: #555;
-      font-size: 13px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+  /* 收缩淡出 */
+  .symbol-row.collapsing {
+    animation: jellyFadeOut 0.4s forwards;
+  }
+
+  @keyframes jellyFadeOut {
+    0% {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
     }
+    100% {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.95);
+    }
+  }
+
+    body.expanded-mode #container .symbol-row:not(.expanded) { opacity: 0; pointer-events: none; filter: blur(3px); transform: scale(0.9); } /* 背景模糊效果 */
+    body.expanded-mode { background: rgba(180,200,200,0.8); backdrop-filter: blur(6px); }
   </style>
 </head>
 <body>
@@ -193,14 +227,21 @@ const defaultSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"];
 const settlementEl = document.getElementById("settlement");
 
 function createChart(element) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = element.getBoundingClientRect();
+  element.width = rect.width * dpr;
+  element.height = rect.height * dpr;
+
   const chart = LightweightCharts.createChart(element, {
+    width: rect.width,
+    height: rect.height,
     layout: { background: { color: "#d9e3e3" }, textColor: "#1a1a1a" },
     grid: { vertLines: { color: "transparent" }, horzLines: { color: "transparent" } },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     rightPriceScale: { borderColor: "#9aa0a0" },
-    timeScale: { borderColor: "#9aa0a0" ,visible: false },
-
+    timeScale: { borderColor: "#9aa0a0", visible: false },
   });
+
   const series = chart.addCandlestickSeries({
     upColor: "#006064",
     downColor: "rgba(46,46,46,0.85)",
@@ -209,6 +250,8 @@ function createChart(element) {
     wickUpColor: "#006064",
     wickDownColor: "rgba(46,46,46,0.85)",
   });
+
+  chart.resize(rect.width, rect.height); // 重新调整
   return { chart, series };
 }
 
@@ -229,8 +272,7 @@ async function fetchLast3(symbol, interval) {
 function subscribeWS(symbol, interval, updateFn) {
   const ws = new WebSocket(wsURL);
   ws.onopen = () => {
-    const topic = `kline.${interval}.${symbol}`;
-    ws.send(JSON.stringify({ op: "subscribe", args: [topic] }));
+    ws.send(JSON.stringify({ op: "subscribe", args: [`kline.${interval}.${symbol}`] }));
   };
   ws.onmessage = ev => {
     const msg = JSON.parse(ev.data);
@@ -247,8 +289,7 @@ function getNextKlineClose(interval) {
     if (next <= now) next.setHours(next.getHours() + 4);
     return next;
   } else if (interval === "D") {
-    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
-    return next;
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
   }
 }
 
@@ -256,18 +297,15 @@ function updateSettlementTime() {
   const now = new Date();
   const next4h = getNextKlineClose("240");
   const next1d = getNextKlineClose("D");
-
   const fmt = ms => {
-    const totalSec = Math.floor(ms/1000);
-    const h = Math.floor(totalSec/3600);
-    const m = Math.floor((totalSec%3600)/60);
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
-    return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   };
-
   settlementEl.textContent = `4H (${fmt(next4h - now)}) | 1D (${fmt(next1d - now)})`;
 }
-
 setInterval(updateSettlementTime, 1000);
 updateSettlementTime();
 
@@ -291,6 +329,13 @@ async function addSymbolRow(symbol) {
   `;
   container.appendChild(row);
 
+
+  row.ondblclick = () => {
+      const expanded = row.classList.toggle("expanded");
+      document.body.classList.toggle("expanded-mode", expanded);
+    };
+
+
   const chart4h = createChart(document.getElementById(`${symbol}-4h`));
   const chart1d = createChart(document.getElementById(`${symbol}-1d`));
 
@@ -304,8 +349,7 @@ async function addSymbolRow(symbol) {
 
   subscribeWS(symbol, "240", data => {
     const c = { time: data.start / 1000, open:+data.open, high:+data.high, low:+data.low, close:+data.close };
-    if (data4h.length && data4h[data4h.length-1].time === c.time)
-      data4h[data4h.length-1] = c;
+    if (data4h.length && data4h[data4h.length-1].time === c.time) data4h[data4h.length-1] = c;
     else data4h.push(c);
     if (data4h.length > 3) data4h.shift();
     chart4h.series.setData(data4h);
@@ -313,8 +357,7 @@ async function addSymbolRow(symbol) {
 
   subscribeWS(symbol, "D", data => {
     const c = { time: data.start / 1000, open:+data.open, high:+data.high, low:+data.low, close:+data.close };
-    if (data1d.length && data1d[data1d.length-1].time === c.time)
-      data1d[data1d.length-1] = c;
+    if (data1d.length && data1d[data1d.length-1].time === c.time) data1d[data1d.length-1] = c;
     else data1d.push(c);
     if (data1d.length > 3) data1d.shift();
     chart1d.series.setData(data1d);
@@ -330,6 +373,5 @@ document.getElementById("addBtn").onclick = () => {
   document.getElementById("symbolInput").value = "";
 };
 </script>
-
 </body>
 </html>
