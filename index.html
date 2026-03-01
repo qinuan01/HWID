@@ -3,216 +3,192 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>杠杆计算器</title>
+  <title>Quant Console · Modern Light</title>
+  <script src="https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js"></script>
   <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      font-family: Inter, sans-serif;
-
-      /* Flex 居中卡片 */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #0f1724;
+    :root{
+      --bg:#f6f8fc;
+      --card:#ffffff;
+      --line:#e6ebf3;
+      --text:#0f172a;
+      --muted:#64748b;
+      --primary:#2563eb;
+      --primary2:#4f46e5;
+      --ok:#089981;
+      --down:#f23645;
+      --shadow:0 10px 30px rgba(15,23,42,.08);
     }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#f8fafc 0%,#eef3fb 100%);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
 
-    canvas#bg {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 0;
-    }
+    .bg-blob{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+    .blob{position:absolute;border-radius:50%;filter:blur(40px);opacity:.22;animation:float 14s ease-in-out infinite}
+    .blob.b1{width:300px;height:300px;background:#60a5fa;left:-80px;top:-80px}
+    .blob.b2{width:320px;height:320px;background:#a78bfa;right:-100px;top:20% ;animation-delay:2s}
+    .blob.b3{width:260px;height:260px;background:#22d3ee;left:30%;bottom:-120px;animation-delay:4s}
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}
 
-    .card {
-      position: relative;
-      z-index: 1;
-      width: 720px;
-      max-width: 95vw;
-      background: linear-gradient(180deg,#071426,#071c2b);
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 12px 30px rgba(2,6,23,0.7);
-      color: #e6eef8;
-      margin: 0;
-    }
+    .wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:22px}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+    .title{font-size:28px;font-weight:800;letter-spacing:.2px;animation:fadeInUp .55s ease both}
+    .sub{color:var(--muted);font-size:14px;margin-top:4px;animation:fadeInUp .65s ease both}
+    .badge{font-size:12px;padding:6px 10px;border-radius:999px;background:#eef2ff;color:#3730a3;border:1px solid #dbe4ff;animation:fadeInUp .75s ease both}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 
-    h1 { margin: 0 0 8px 0; font-size: 20px }
-    p.sub { margin: 0 0 18px 0; color: #94a3b8; font-size: 13px }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px }
-    label { display: block; font-size: 13px; color: #9fb4dd; margin-bottom: 6px }
-    input { width: 80%; margin: 0 auto; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); color: #e6eef8; font-size: 15px }
-    .row { display: flex; gap: 8px }
-    button { padding: 10px 14px; border-radius: 8px; border: 0; cursor: pointer; background: #0b3b63; color: white; font-weight: 600 }
-    .result { background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; margin-top: 10px; color: #dbeafe }
-    .muted { color: #94a3b8; font-size: 13px }
-    .formula { background: rgba(255,255,255,0.015); padding: 10px; border-radius: 8px; margin-top: 12px; color: #cfe3ff; font-size: 14px }
-    .example { font-size: 13px; color: #cddffb }
-    footer { margin-top: 12px; color: #94a3b8; font-size: 12px }
-    @media (max-width: 640px){ .grid{grid-template-columns:1fr} }
+    .tabs{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+    .tab{border:1px solid var(--line);background:#fff;color:#1e293b;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700;transition:.2s}
+    .tab:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+    .tab.active{background:linear-gradient(90deg,var(--primary),var(--primary2));color:#fff;border-color:transparent}
+
+    .panel{border:1px solid var(--line);background:var(--card);border-radius:16px;padding:16px;box-shadow:var(--shadow);animation:fadeInUp .45s ease both}
+    .hidden{display:none}
+
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .field{background:#fbfdff;border:1px solid var(--line);border-radius:12px;padding:12px;transition:.2s}
+    .field:hover{border-color:#d6e0f0}
+    label{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:#334155;margin-bottom:8px}
+    .hint{font-size:12px;color:#94a3b8}
+    input{width:100%;padding:10px 12px;border-radius:9px;border:1px solid #d9e2ef;background:#fff;color:var(--text);font-size:15px;transition:.2s}
+    input:focus{outline:none;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.2)}
+
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button{border:0;border-radius:10px;padding:10px 13px;font-weight:700;cursor:pointer;transition:.2s}
+    button:hover{transform:translateY(-1px)}
+    .b1{background:linear-gradient(90deg,var(--primary),var(--primary2));color:#fff}
+    .b2{background:#f8fafc;border:1px solid #d8e1ef;color:#334155}
+
+    .out{margin-top:12px;border:1px solid var(--line);border-radius:12px;background:#fcfdff;padding:12px;line-height:1.65}
+    .ok{color:var(--ok);font-weight:700}
+    .warn{color:var(--down);font-weight:700}
+    .formula{margin-top:8px;color:#64748b;font-size:13px;border-top:1px dashed #d7e2f0;padding-top:8px}
+
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+    .toolbar input{max-width:240px}
+    .settlement{font-size:14px;color:#334155;background:#f8fbff;border:1px solid #dbe5f3;border-radius:10px;padding:8px 10px}
+    .cards{display:flex;flex-direction:column;gap:12px}
+    .row{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:0 4px 18px rgba(15,23,42,.05);animation:fadeInUp .35s ease both}
+    .row-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .symbol{font-weight:800;color:#1d4ed8}
+    .charts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .chartbox{background:#f9fbff;border:1px solid #e2e9f5;border-radius:10px;padding:8px;transition:.2s}
+    .chartbox:hover{box-shadow:0 6px 20px rgba(37,99,235,.08)}
+    .chartlabel{font-size:12px;color:#64748b;margin-bottom:6px}
+    .chart{height:220px}
+
+    @media (max-width:860px){.grid,.charts{grid-template-columns:1fr}.chart{height:200px}}
   </style>
 </head>
 <body>
-  <!-- 星空背景 canvas -->
-  <canvas id="bg"></canvas>
-
-  <!-- 计算器卡片 -->
-  <div class="card">
-    <h1>杠杆 — 盈利关系计算器</h1>
-    <p class="sub">输入杠杆、目标收益或标的变动，自动扣除手续费（默认0.07%）。</p>
-
-    <div class="grid">
+  <div class="bg-blob"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+  <div class="wrap">
+    <div class="top">
       <div>
-        <label>杠杆倍数 (×)</label>
-        <input id="leverage" type="number" min="1" step="0.01" value="25">
+        <div class="title">Quant Console</div>
+        <div class="sub">白色现代风 · 融合「杠杆收益计算器」+「CRT Sniper 行情面板」</div>
       </div>
-      <div>
-        <label>手续费率 (%)</label>
-        <input id="feePct" type="number" step="0.0001" value="0.07">
-      </div>
-      <div>
-        <label>目标收益（%）</label>
-        <input id="targetProfit" type="number" step="0.0001" value="10">
-      </div>
-      <div>
-        <label>标的实际变动（%）</label>
-        <input id="underlyingMove" type="number" step="0.0001" placeholder="例如 0.4">
-      </div>
+      <div class="badge">Modern Light v4</div>
     </div>
 
-    <div class="row" style="margin-bottom:8px">
-      <button id="calcRequired">从 杠杆+目标收益 → 计算标的需变动</button>
-      <button id="calcProfit">从 杠杆+标的变动 → 计算收益</button>
-      <button id="clearAll" style="background:#1f2937">清除</button>
+    <div class="tabs">
+      <button class="tab active" data-tab="calc">杠杆收益计算</button>
+      <button class="tab" data-tab="sniper">CRT Sniper 面板</button>
     </div>
 
-    <div id="out" class="result" aria-live="polite">
-      <div id="outText">结果会显示在这里</div>
-      <div class="formula" id="formulaArea">
-        <strong>公式</strong>
-        <div>毛收益率 (%) = 杠杆 × 标的变动 (%)</div>
-        <div>净收益率 (%) = 毛收益率 − (手续费率 × 杠杆)</div>
-        <div>标的需变动 (%) = (目标收益率 + 手续费率 × 杠杆) ÷ 杠杆</div>
+    <section id="calc" class="panel">
+      <div class="grid">
+        <div class="field"><label>杠杆倍数 (×) <span class="hint">建议 2~5 起步</span></label><input id="leverage" type="number" min="1" step="0.01" value="10"></div>
+        <div class="field"><label>手续费率 (%) <span class="hint">默认单边</span></label><input id="feePct" type="number" min="0" step="0.0001" value="0.07"></div>
+        <div class="field"><label>目标净收益 (%)</label><input id="targetProfit" type="number" step="0.0001" value="10"></div>
+        <div class="field"><label>标的实际变动 (%)</label><input id="underlyingMove" type="number" step="0.0001" placeholder="0.4"></div>
       </div>
-    </div>
+      <div class="actions"><button class="b1" id="calcRequired">算：达到目标需变动</button><button class="b1" id="calcProfit">算：给定变动的收益</button><button class="b2" id="clearAll">清空</button></div>
+      <div class="out"><div id="outText">结果会显示在这里。</div><div class="formula">毛收益率 = 杠杆 × 标的变动；净收益率 = 毛收益率 − (手续费率 × 杠杆)。</div></div>
+    </section>
 
-    <div class="example">
-      <strong>示例：</strong> 杠杆 25×，目标收益 10%，手续费率 0.07% → 标的需上涨 ≈ (10+0.07×25)/25 = 0.47%。
-    </div>
-
-    <footer>注意：这里只计算单边手续费，如果实际交易是双边（开仓+平仓），记得把手续费率翻倍。</footer>
+    <section id="sniper" class="panel hidden">
+      <div class="toolbar"><div id="settlement" class="settlement">4H (--:--:--) | 1D (--:--:--)</div><input id="symbolInput" placeholder="输入币种，例如 XRPUSDT"><button class="b1" id="addBtn">+ 添加币种</button></div>
+      <div id="cards" class="cards"></div>
+    </section>
   </div>
 
-  <script>
-    // ====== 杠杆计算器 JS ======
-    function fmtPercent(n){
-      if (!isFinite(n)) return '—';
-      const fixed = Number(n).toFixed(6);
-      return parseFloat(fixed).toString().replace(/\.0+$/,'') + '%';
-    }
-    function getVal(id){
-      const v = parseFloat(document.getElementById(id).value);
-      return isNaN(v) ? NaN : v;
-    }
-    const outText = document.getElementById('outText');
+<script>
+  const tabs=document.querySelectorAll('.tab');
+  let sniperInitialized=false;
+  function initSniperOnce(){ if(sniperInitialized) return; sniperInitialized=true; defaultSymbols.forEach(addSymbolRow); }
+  tabs.forEach(btn=>btn.onclick=()=>{ tabs.forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const toSniper=btn.dataset.tab==='sniper'; document.getElementById('calc').classList.toggle('hidden',toSniper); document.getElementById('sniper').classList.toggle('hidden',!toSniper); if(toSniper) initSniperOnce(); });
 
-    document.getElementById('calcRequired').addEventListener('click', () => {
-  const L = getVal('leverage'), target = getVal('targetProfit'), fee = getVal('feePct');
-  if(!isFinite(L)||L<=0||!isFinite(target)){
-    outText.innerText='请填写杠杆与目标收益。';return;
+  const outText=document.getElementById('outText');
+  const val=id=>{const n=parseFloat(document.getElementById(id).value); return Number.isFinite(n)?n:NaN};
+  const pct=n=>Number.isFinite(n)?`${parseFloat(n.toFixed(6))}%`:'—';
+
+  document.getElementById('calcRequired').onclick=()=>{
+    const L=val('leverage'),target=val('targetProfit'),fee=val('feePct');
+    if(!(L>0)||!Number.isFinite(target)||fee<0){outText.textContent='请正确填写参数。';return;}
+    const noFee=target/L, feeCost=fee*L, withFee=(target+feeCost)/L;
+    document.getElementById('underlyingMove').value=Number(withFee.toFixed(6));
+    outText.innerHTML=`不计手续费：<span class="ok">${pct(noFee)}</span><br>计手续费：<span class="warn">${pct(withFee)}</span><br>手续费折算损耗：<span class="warn">${pct(feeCost)}</span>`;
+  };
+  document.getElementById('calcProfit').onclick=()=>{
+    const L=val('leverage'),move=val('underlyingMove'),fee=val('feePct');
+    if(!(L>0)||!Number.isFinite(move)||fee<0){outText.textContent='请正确填写参数。';return;}
+    const gross=L*move, feeCost=fee*L, net=gross-feeCost;
+    outText.innerHTML=`毛收益：<span class="ok">${pct(gross)}</span><br>净收益：<span class="warn">${pct(net)}</span><br>手续费折算损耗：<span class="warn">${pct(feeCost)}</span>`;
+  };
+  document.getElementById('clearAll').onclick=()=>{['leverage','feePct','targetProfit','underlyingMove'].forEach(id=>document.getElementById(id).value=''); outText.textContent='已清空输入。';};
+
+  const wsURL='wss://stream.bybit.com/v5/public/linear';
+  const cards=document.getElementById('cards');
+  const settlementEl=document.getElementById('settlement');
+  const defaultSymbols=['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT'];
+
+  function createChart(element){
+    const rect=element.getBoundingClientRect();
+    const chart=LightweightCharts.createChart(element,{width:rect.width,height:rect.height,layout:{background:{color:'#f9fbff'},textColor:'#334155'},grid:{vertLines:{color:'#edf2f9'},horzLines:{color:'#edf2f9'}},rightPriceScale:{borderColor:'#dbe5f3'},timeScale:{borderColor:'#dbe5f3',visible:false}});
+    const series=chart.addCandlestickSeries({upColor:'#006064',downColor:'rgba(46,46,46,0.85)',borderVisible:false,wickUpColor:'#006064',wickDownColor:'rgba(46,46,46,0.85)'});
+    return {chart,series};
   }
 
-  // 不计手续费的标的需变动
-  const moveNoFee = target / L;
-
-  // 计手续费的标的需变动
-  const moveWithFee = (target + fee * L) / L;
-
-  outText.innerHTML = `<strong>结果：</strong><br>
-    杠杆 ${L}×, 目标净收益 ${target}%<br>
-    ├─ <span style="color:#a5f3fc">不计手续费：标的需变动 ≈ ${fmtPercent(moveNoFee)}</span><br>
-    └─ <span style="color:#fca5a5">计手续费：标的需变动 ≈ <strong>${fmtPercent(moveWithFee)}</strong></span><br>
-    (手续费 ${fee}% × 杠杆 → ${fmtPercent(fee * L)})`;
-
-  document.getElementById('underlyingMove').value = Number(moveWithFee.toFixed(6));
-});
-
-
-document.getElementById('calcProfit').addEventListener('click', () => {
-  const L = getVal('leverage'), move = getVal('underlyingMove'), fee = getVal('feePct');
-  if (!isFinite(L) || L <= 0 || !isFinite(move)) {
-    outText.innerText = '请填写杠杆与标的变动。'; 
-    return;
+  async function fetchLast3(symbol,interval){
+    const url=`https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=3`;
+    const res=await fetch(url); const json=await res.json(); const list=json?.result?.list||[];
+    return list.map(k=>({time:Number(k[0])/1000,open:+k[1],high:+k[2],low:+k[3],close:+k[4]})).reverse();
+  }
+  function subscribeWS(symbol,interval,cb){
+    const ws=new WebSocket(wsURL);
+    ws.onopen=()=>ws.send(JSON.stringify({op:'subscribe',args:[`kline.${interval}.${symbol}`]}));
+    ws.onmessage=ev=>{const msg=JSON.parse(ev.data); if(msg.data?.[0]) cb(msg.data[0]);};
+    ws.onclose=()=>setTimeout(()=>subscribeWS(symbol,interval,cb),2000);
   }
 
-  // 不计手续费（主结果）
-  const gross = L * move;          // 毛收益 = 杠杆 × 标的变动
+  function nextClose(interval){
+    const now=new Date();
+    if(interval==='240'){const h=Math.floor(now.getUTCHours()/4)*4+4;const n=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate(),h,0,0)); if(n<=now) n.setUTCHours(n.getUTCHours()+4); return n;}
+    return new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()+1,0,0,0));
+  }
+  function updateSettlement(){
+    const now=new Date();
+    const fmt=ms=>{const t=Math.floor(ms/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60;return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;};
+    settlementEl.textContent=`4H (${fmt(nextClose('240')-now)}) | 1D (${fmt(nextClose('D')-now)})`;
+  }
+  setInterval(updateSettlement,1000); updateSettlement();
 
-  // 计手续费（对比项）
-  const net = gross - fee * L;     // 净收益 = 毛收益 − (手续费率 × 杠杆)
+  async function addSymbolRow(symbol){
+    symbol=symbol.toUpperCase(); if(!/^[A-Z0-9]{6,20}$/.test(symbol)) return; if(document.getElementById(`row-${symbol}`)) return;
+    const row=document.createElement('div'); row.className='row'; row.id=`row-${symbol}`;
+    row.innerHTML=`<div class="row-head"><div class="symbol">${symbol}</div><button class="b2" data-remove="${symbol}">移除</button></div><div class="charts"><div class="chartbox"><div class="chartlabel">4H</div><div id="${symbol}-4h" class="chart"></div></div><div class="chartbox"><div class="chartlabel">1D</div><div id="${symbol}-1d" class="chart"></div></div></div>`;
+    cards.appendChild(row);
+    row.querySelector('[data-remove]').onclick=()=>row.remove();
 
-  outText.innerHTML = `<strong>结果：</strong><br>
-    杠杆 ${L}×, 标的变动 ${fmtPercent(move)}<br>
-    ├─ <span style="color:#a5f3fc">不计手续费（毛收益）≈ ${fmtPercent(gross)}</span><br>
-    └─ <span style="color:#fca5a5">计手续费（净收益）≈ ${fmtPercent(net)}</span><br>
-    (手续费 ${fee}% × 杠杆 → ${fmtPercent(fee * L)})`;
+    const c4=createChart(document.getElementById(`${symbol}-4h`));
+    const c1=createChart(document.getElementById(`${symbol}-1d`));
+    let d4=await fetchLast3(symbol,'240'); let d1=await fetchLast3(symbol,'D');
+    c4.series.setData(d4); c1.series.setData(d1); c4.chart.timeScale().fitContent(); c1.chart.timeScale().fitContent();
 
-  // 不再写入 targetProfit，避免“看起来像加上了手续费”
-  // 如需自动填入，可改为：document.getElementById('targetProfit').value = Number(gross.toFixed(6)); // 毛收益
-  // 或：document.getElementById('targetProfit').value = Number(net.toFixed(6));   // 净收益
-});
+    subscribeWS(symbol,'240',k=>{const c={time:k.start/1000,open:+k.open,high:+k.high,low:+k.low,close:+k.close}; if(d4.length&&d4[d4.length-1].time===c.time)d4[d4.length-1]=c; else d4.push(c); if(d4.length>3)d4.shift(); c4.series.setData(d4);});
+    subscribeWS(symbol,'D',k=>{const c={time:k.start/1000,open:+k.open,high:+k.high,low:+k.low,close:+k.close}; if(d1.length&&d1[d1.length-1].time===c.time)d1[d1.length-1]=c; else d1.push(c); if(d1.length>3)d1.shift(); c1.series.setData(d1);});
+  }
 
-
-    document.getElementById('clearAll').addEventListener('click',()=>{
-      ['leverage','targetProfit','underlyingMove','feePct'].forEach(id=>document.getElementById(id).value='');
-      outText.innerText='已清除。';
-    });
-
-    // ====== 星空背景 JS ======
-    const canvas = document.getElementById("bg");
-    const ctx = canvas.getContext("2d");
-    let stars = [];
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      stars = Array.from({length:150}, () => ({
-        x: Math.random()*canvas.width,
-        y: Math.random()*canvas.height,
-        r: Math.random()*1.5,
-        d: Math.random()*1
-      }));
-    }
-    function drawStars() {
-      ctx.clearRect(0,0,canvas.width,canvas.height);
-      ctx.fillStyle="#fff";
-      stars.forEach(s=>{
-        ctx.beginPath();
-        ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
-        ctx.fill();
-      });
-      updateStars();
-    }
-    function updateStars(){
-      stars.forEach(s=>{
-        s.y += s.d;
-        if(s.y>canvas.height){
-          s.y=0;
-          s.x=Math.random()*canvas.width;
-        }
-      });
-    }
-    function animate(){
-      drawStars();
-      requestAnimationFrame(animate);
-    }
-    window.addEventListener("resize", resize);
-    resize();
-    animate();
-  </script>
+  document.getElementById('addBtn').onclick=()=>{const el=document.getElementById('symbolInput'); const sym=el.value.trim().toUpperCase(); if(sym) addSymbolRow(sym); el.value='';};
+</script>
 </body>
 </html>
